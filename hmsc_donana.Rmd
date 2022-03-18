@@ -1,0 +1,598 @@
+---
+title: "Fitting JSDM-HMSC model for mosquito species in Donana"
+output:
+  html_document:
+    df_print: paged
+---
+This script describe the analysis of species to species association using the HMSC approach as a JSDM for Mosquito abundance data in a Mediterranean wetland.
+
+
+1. create paths 
+
+```{r, include=TRUE, Echo=TRUE}
+localDir="."
+ModeDir <- file.path(localDir, 'models') # directory for the models
+DataDir <- file.path(localDir, "data") # directory for the data 
+
+# Load package
+
+library(Hmsc)
+library(colorspace)
+library(corrplot)
+library(writexl)
+library(ggplot2)
+
+
+```
+
+2. Read and view raw Data 
+```{r, include=TRUE}
+# Read the dataframe  SXY: study design (S) and/or covariates (X) and species data (Y) 
+SXY = read.csv("data/Roiz_Msq_data_prj.csv", stringsAsFactors=TRUE, header = TRUE) 
+
+View(SXY)
+S=SXY[,c(2,36:37)] # S include variable that serves as random effect e.g. the each traps 
+head(S)
+X=SXY[,c(5,18, 30,31:33,38,39)] # X include the explanatory variables of interest; if more variable are available one could check for multicolinearity and also carried out preliminary test using glm and evaluate using AICs.
+
+head(X)
+str(X)
+Y=SXY[,c(7:13)] # Y represent the response variable i.e.  relative abundance of the mosquito species. The Y data consist of Oc.detritus , Oc.caspius, Cx.pipiens , Cx.modestus, Cx.perexiguus, An.atroparvus abundance.
+
+head(Y)
+# The following check if the data are numeric and have finite numbers. If the script
+# writes "Y looks OK", you are ok.
+if (is.numeric(as.matrix(Y)) || is.logical(as.matrix(Y)) && is.finite(sum(Y, na.rm=TRUE))) {
+    print("Y looks OK")
+} else {
+	print("Y should be numeric and have finite values")	}
+# Check that the stydy design data do not have missing values (they are allowed for Y but not S, X, P or Tr)
+if (any(is.na(S))) {
+  print("S has NA values - not allowed for")
+} else {
+  print("S looks ok")	}
+# Check that the covariate data do not have missing values (they are allowed for Y but not S, X, P or Tr)
+if (any(is.na(X))) {
+  print("X has NA values - not allowed for")
+} else {
+  print("X looks ok")	}
+
+
+# if (is.numeric(as.matrix(Yabu)) || is.logical(as.matrix(Yabu)) && is.finite(sum(Yabu, na.rm=TRUE))) {
+#     print("Y looks OK")
+# } else {
+# 	print("Y should be numeric and have finite values")	}
+getwd()
+Y=as.matrix(Y)
+save(S,X,Y, file = 'data/allData.R')
+
+```
+
+3. EXplore raw data
+```{r}
+#Let us explore the raw data by plotting histograms of species
+# prevalences and abundances.
+P = colMeans(Y > 0)
+head(P)
+hist(P, xlim=c(0,1), xlab = "Prevalence (P)") # Prevalence is define as the fraction of occupied sampling units. The y-axis
+
+# We define abundance as the mean number of individuals over sites
+# where the species is present.
+
+A = colSums(Y)/colSums(Y>0)
+hist(A, xlab = "Abundance (A)")
+A
+
+# species richness 
+hist(rowSums(Y>0)) 
+
+```
+
+```{r}
+
+# load(file = file.path(DataDir, "allData.R")) # load the saved data
+length(unique(S$trap))  # Can be specified to include only Unique level2 i.e., one random effect for traps and another random effect for landscape features
+
+
+
+# Scale X to ease interpretations
+#Normalizing continuous Covariates: Otherwise, interaction terms hardly interpretable and skewed
+# X.scale <- X[,-1]
+# 
+# X.scale <- scale(X.scale)
+# X.scale <- as.data.frame(X.scale)   # check the list to dataframe
+# X.scale$Unit_Class <- X$Unit_Class
+#   
+# 
+# head(X.scale)
+
+# The Y dataset is a continuous abundance data, HMSC recommend log transform of CA Y data  to have a normal distribution 
+Yabu <- Y
+Yabu[Y==0] =NA
+Yabu = log(Yabu)
+
+sum(duplicated(S[,1:3]))
+studyDesign <- data.frame(trap= as.factor(S$trap))
+head(studyDesign)
+xy <- data.frame(S[match(unique(S$trap), S$trap), 2:3])
+dim(xy)
+rownames(xy) <- unique(S$trap)
+head(xy)
+# colnames(xy) <- c("Latitude", "Longitude")
+# xy <- xy[,c(2,1)]
+head(xy)
+rL.trap <- HmscRandomLevel(sData = xy)
+# rL.trap =setPriors(rL.trap,nfMin=1,nfMax=3) # control the number of latent variable
+
+
+#define the formula
+head(X)
+View(X)
+
+colnames(X)
+XFormula =   ~  Unit_Class + HIDRO_MEAN_500 + NDVI_2000 + DIST_RIO+DIST_ARROZ+ NDWI_500 +DIST_urbano + poly(LST_500, degree = 2,raw = TRUE)
+
+
+
+```
+
+4. Model Define and fit
+```{r}
+m = Hmsc(Y=Yabu,  YScale = TRUE, XData  = X, XFormula = XFormula,
+          distr = "normal",
+          studyDesign = studyDesign,
+          ranLevels = {list("trap"=rL.trap)})
+
+
+# As always, it is a good idea to explore the model object
+m
+
+# This should give "Hmsc object with 111 sampling units,  6 species, 10 covariates, 1 traits and 1 random levels"
+
+head(m$X)
+
+# The factor of unit_classes has been expanded to dummy variables
+
+
+
+
+
+
+
+```
+
+
+
+```{r}
+# #Model Fit
+# nChains = 2 # for the final model nchains should be 4, I have tried 4 several time but my system kept crashing especially while using the
+# nParallel = 2 # optional setting of nParallel for the chain, it is a recommended that
+# samples = 100
+# for (thin in c(1,10, 100)) #,100,1000))
+# {
+#   m = sampleMcmc(m, samples = samples, thin=thin,
+#                    adaptNf=rep(ceiling(0.4*samples*thin),m$nr),
+#                    transient = ceiling(0.5*samples*thin),
+#                    nChains = nChains, verbose=FALSE) # initPar produces error
+#   filename=file.path(ModeDir, paste0("model_chains_",as.character(nChains),"_samples_",as.character(samples),"_thin_",as.character(thin)))
+#   save(m,file=filename)
+# }
+
+ 
+
+```
+
+5. Evaluate MCM convergence 
+```{r}
+set.seed(1)
+
+nChains = 2
+samples = 100
+thin = 100 # try with thin = 1, thin = 10, thin = 100, etc.
+filename = file.path(ModeDir, paste0("model_chains_",as.character(nChains),"_samples_",as.character(samples),"_thin_",as.character(thin)))
+load(filename)
+
+# We restrict here the study of MCMC convergence to the examination of the potential scale reduction factor
+# of the beta parameters and the Omega parameters. For the latter, we take a subsample of 200 randomly selected
+# species pairs to avoid excessive computations.
+
+mpost = convertToCodaObject(m, spNamesNumbers = c(T,F), covNamesNumbers = c(T,F))
+
+# Check effective sample size
+effectiveSize(mpost$Beta) 
+
+psrf.beta = gelman.diag(mpost$Beta,multivariate=FALSE)$psrf
+tmp = mpost$Omega[[1]]
+z = ncol(tmp[[1]])
+sel = sample(z, size=49)
+# Here we take the subset of species pairs. We loop over the 2 MCMC chains.
+for(i in 1:length(tmp)){ 
+  tmp[[i]] = tmp[[i]][,sel]
+}
+psrf.omega = gelman.diag(tmp,multivariate=FALSE)$psrf
+
+par(mfrow=c(1,2))
+hist(psrf.beta, xlab = "psrf (beta)")
+hist(psrf.omega, xlab = "psrf (Omega)")
+
+# The MCMC convergence diagnostics can be considered satisfactory if for
+# most parameters the potential scale reduction factor is close to the ideal value of one.
+# For example, if most of the values are smaller than the value of 1.1. If you are
+# evaluating this script with thin=1, the largest values you see are likely to be greater than ten.
+# This means that MCMC convergence is not achieved, which means that the posterior sample
+# can be a very bad approximation of the true posterior distribution. However, this should not
+# stop one from making a preliminary exploration of the results, just keeping in mind
+# that the results can be very misleading. Thus, even if the MCMC did not converge yet,
+
+
+```
+
+6 Explore model fit
+```{r}
+nChains = 2
+samples = 100
+thin = 100
+filename=file.path(ModeDir, paste0("model_chains_",as.character(nChains),"_samples_",as.character(samples),"_thin_",as.character(thin)))
+load(filename)
+
+# We next evaluate model fit in terms of explanatory power
+
+preds = computePredictedValues(m)
+MF = evaluateModelFit(hM=m, predY=preds)
+
+# We also evaluate model fit in terms of predictive power based on two-fold cross-validation.
+# Doing the latter takes a lot of time, as the model needs to be re-fitted twice. For this reason,
+# we store the results from cross-validation.
+# Set run.cross.validation = TRUE to perform the cross-validation and to save the results.
+# Set run.cross.validation = FALSE to read in results from cross-validation that you have run previously.
+
+# nParallel = 2
+# run.cross.validation = TRUE # start with TRUE when you introduce the script
+# filename=file.path(ModeDir, paste0("CV_chains_",as.character(nChains),"_samples_",as.character(samples),"_thin_",as.character(m$thin)))
+# if(run.cross.validation){
+#   partition = createPartition(m, nfolds = 2, column = "trap")
+#   preds = computePredictedValues(m,partition=partition, nParallel = nParallel)
+#   MFCV = evaluateModelFit(hM=m, predY=preds)
+#   save(partition,MFCV,file=filename)
+# } else {
+#   load(filename)
+# }
+# 
+# tmp.eval = c(mean(MF$RMSE), mean(MFCV$RMSE), mean(MF$R2), mean(MFCV$R2)) # for the normal HMSC-JSDM model, evaluation is base on R square and Root mean square error)
+# names(tmp.eval)=c("RMSE","RMSE (CV)","R2","R2 (CV)")
+# tmp.eval
+
+
+
+# We observe that (with thin = 100) the average (over the species) Root mean square error for explanatory power is 0.8,
+
+# and  the average Root mean square error for predictive power is 0.79.
+# The average R square for explanatory power is 0.70,
+# and  the average R2  for predictive power is 0.33.
+# If we would have fitted multiple models, we could compare them either based on the cross-validation
+# (as was done by above) or with WAIC. WAIC can be computed as follows:
+
+```
+
+Explore Paramete Estimate
+```{r}
+# Explore the Parameter Estimate
+nChains = 2
+samples = 100
+thin = 100
+filename=file.path(ModeDir, paste0("model_chains_",as.character(nChains),"_samples_",as.character(samples),"_thin_",as.character(thin)))
+load(filename)
+
+# We first perform a variance partitioning of the model.
+# To be able to group the environmental variables, we look at the design matrix X that Hmsc has constructed
+# by applying the XFormula to the XData.
+
+head(m$X)
+colnames(m$X)
+# We observe that the columns 2-5 relate to habitat variation and columns 6-7 to climatic variation.
+# Arbitrarily, we include the intercept in the habitat variables, and thus perform the variance partitioning
+# with the following grouping of the columns of the X matrix.
+# m$postList
+groupnames = c("Landuse","Hydroperiod","NDVI","DIST_RIO","DIST_ARROZ", "NDWI", "DIST_urbano", "LST")
+group = c(1,1,1,1,1,1, 2,3, 4,5, 6, 7, 8,8)
+VP = computeVariancePartitioning(m, group = group, groupnames = groupnames)
+
+# Note that alternatively you may set 'las=2' to draw species titles vertically 
+# But then you need to set margins wide enough to hold them
+
+```
+
+```{r}
+
+VariancePartition =  paste("panels/variancePartitioning.pdf")
+pdf(file = VariancePartition)
+# op = par(mar=c(9,4,1,1)+.1)
+plotVariancePartitioning(m,VP, las=2)
+dev.off()
+
+
+
+# The results of the variance partitioning show that the normal HMSC model for the mosquito 
+# relies much on the spatial random effect.
+# The climatic variable LST explains little variance as the
+# habitat variable. Note that the numbers in the box in the figure show average variance proportions
+# over the species, and that for some individual species (shown by the bars)
+# the habitat matters more than climatic conditions.
+```
+
+
+Estimate Species-Niche Parameters
+```{r}
+ # To examine variation among the species, we visualise their niches in Figure XX, which plot we generated for Model with the `plotBeta` function.
+
+# We next construct a beta-plot showing the estimates of species niche parameters
+SpeciesNiches =  paste("panels/speciesNiches.pdf")
+pdf(file = SpeciesNiches)
+postBeta = getPostEstimate(m, parName="Beta")
+plotBeta(m, post=postBeta, spNamesNumbers=c(T, T))
+dev.off()
+
+# In this figure, the landscape preferences of the species are compared to the reference level
+# of crops (Unit_Class: crop). We observe predominatly positive responses to the landscape sand dune,
+# meaning that most species prefer sanddune than the crop landscape. Concerning the other
+# landscapes (fishponds, Marshlands, Ricefields, scrubland), there are several
+# species that show either a higher or a lower preference than for the crop landscape.
+# For most species, the linear response to the annual LST is neutral except culex pipien that have negative responses
+# this means that the occurrence probability of most species are stable for the annual temperature.
+
+# For the main model quadratic effect and seasonal model will be tested.
+
+
+```
+
+
+Examining Species Associations
+```{r}
+# We next illustrate the species associations revealed by the random effects with the corrplot function.
+
+library(corrplot)
+OmegaCor = computeAssociations(m)
+supportLevel = 0.95
+toPlot = ((OmegaCor[[1]]$support>supportLevel)
+          + (OmegaCor[[1]]$support<(1-supportLevel))>0)*OmegaCor[[1]]$mean
+toPlot = sign(toPlot)
+plotOrder = corrMatOrder(OmegaCor[[1]]$mean,order="AOE")
+corrplot(toPlot[plotOrder,plotOrder], method = "color", tl.cex=0.5,
+         col=colorRampPalette(c("blue", "white", "red"))(255))
+
+
+#Without reordering the species
+plotOrder = 1:m$ns
+parameter_estimate =  paste("panels/parameter_Estimate.pdf")
+pdf(file = parameter_estimate)
+m 
+corrplot(toPlot[plotOrder,plotOrder], method = "color", tl.cex=0.5,
+         col=colorRampPalette(c("blue", "white", "red"))(255))
+# The red and blue colours indicate those species pairs for which the support for
+# either a positive or negative association is at least 0.95.
+# Note that we have ordered the species (with the function corrMatOrder) so that the cluster of
+# co-occurring species is most easily seen. To keep the original species order, write e.g. plotOrder = 1:m$ns
+
+```
+
+Examine Spatial Scale
+
+```{r}
+# We next examine at which spatial scale the variation captured by the random effect occurs.
+
+mpost = convertToCodaObject(m) # mpost was calculated above
+summary(mpost$Alpha[[1]], quantiles = c(0.025, 0.5, 0.975))
+
+# There is support for spatial signal in the residual, as the posterior distribution
+# of the alphas overlap does not zero. Thus, the variation is dependent among the traps.
+# The variation in the leading factor occurs at the scale of  5000 km reflecting the scale at which the relevant environmental conditions vary.
+
+
+```
+
+```{r}
+# Make Prediction
+set.seed(1)
+
+# We first read in the model object. You may change the thin parameter to the highest
+# thin for which you have fitted the model, to get as reliable results as possible
+
+nChains = 2
+samples = 100
+thin = 100
+filename=file.path(ModeDir, paste0("model_chains_",as.character(nChains),"_samples_",as.character(samples),"_thin_",as.character(thin)))
+load(filename)
+# We start by making gradient plots that visualise how the communities vary among the 
+# environmental variables.
+colnames(X)
+Gradient = constructGradient(m,focalVariable = "HIDRO_MEAN_500")
+predY = predict(m, Gradient=Gradient, expected = TRUE)
+
+# Occurrence probability of Oc. detritus (to see other species, change index)
+
+plotGradient(m, Gradient, pred=predY, measure="Y", index = 1, showData = TRUE)
+
+# Occurrence probability of Cx modestus 
+plotGradient(m, Gradient, pred=predY, measure="Y", index = 4, showData = TRUE)
+
+# Species richness
+
+plotGradient(m, Gradient, pred=predY, measure="S", showData = TRUE)
+
+# We observe that the occurrence probability of the species Cx. modestus  slightly increases with the hydroperiod 500 values
+# The species richness slightly increases as well with the hydroperiod 500,  reflecting the
+# fact that most species respond positively to temperature. 
+# We next plot the same features over the landscape gradient
+#colnames(X)
+
+Gradient = constructGradient(m,focalVariable = "Unit_Class")
+predY = predict(m, Gradient=Gradient, expected = TRUE)
+plotGradient(m, Gradient, pred=predY, measure="Y", index = 6, showData = TRUE,  jigger = 0.1)
+plotGradient(m, Gradient, pred=predY, measure="S", showData = TRUE, jigger = 0.1)
+```
+
+Make Prediction for All covariates
+
+```{r}
+predictions =  paste("panels/predictions1.pdf")
+pdf(file = predictions)
+m
+covariates = all.vars(m$XFormula)
+ex.sp = which.max(colMeans(m$Y,na.rm = TRUE)) #most common species as example species
+if(m$distr[1,1]==2){
+    ex.sp = which.min(abs(colMeans(m$Y,na.rm = TRUE)-0.5)) #for probit models the species with prevalence closest to 0.5
+  }
+for(k in 1:(length(covariates))){
+    covariate = covariates[[k]]
+    Gradient = constructGradient(m,focalVariable = covariate)
+    Gradient2 = constructGradient(m,focalVariable = covariate,non.focalVariables = 1)
+    predY = predict(m, Gradient=Gradient, expected = TRUE)
+    predY2 = predict(m, Gradient=Gradient2, expected = TRUE)
+    par(mfrow=c(2,1))
+    pl = plotGradient(m, Gradient, pred=predY, yshow = 0, measure="S", showData = TRUE,
+                      main = paste0("Normal Model",": summed response (total effect)"))
+    if(inherits(pl, "ggplot")){
+      print(pl + labs(title=paste0("Normal Model",": summed response (total effect)")))
+    }
+    pl = plotGradient(m, Gradient2, pred=predY2, yshow = 0, measure="S", showData = TRUE,
+                      main = paste0("Normal Model",": summed response (marginal effect)"))
+    if(inherits(pl, "ggplot")){
+      print(pl + labs(title=paste0("Normal Model",": summed response (marginal effect)")))
+    }
+    par(mfrow=c(2,1))
+    pl = plotGradient(m, Gradient, pred=predY, yshow = if(m$distr[1,1]==2){c(-0.1,1.1)}else{0}, measure="Y",index=ex.sp, showData = TRUE,
+                      main = paste0("Normal Model",": example species (total effect)"))
+    if(inherits(pl, "ggplot")){
+      print(pl + labs(title=paste0("Normal Model",": example species (total effect)")))
+    }
+    pl = plotGradient(m, Gradient2, pred=predY2, yshow = if(m$distr[1,1]==2){c(-0.1,1.1)}else{0}, measure="Y",index=ex.sp, showData = TRUE,
+                      main = paste0("Normal Model",": example species (marginal effect)"))
+    if(inherits(pl, "ggplot")){
+      print(pl + labs(title=paste0("Normal Model",": example species (marginal effect)")))
+    }
+    if(m$nt>1){
+      for(l in 2:m$nt){
+        par(mfrow=c(2,1))
+        pl = plotGradient(m, Gradient, pred=predY, measure="T",index=l, showData = TRUE,yshow = 0,
+                          main = paste0("Normal Model",": community weighted mean trait (total effect)"))
+        if(inherits(pl, "ggplot")){
+          print(pl + labs(title=paste0("Normal Model",": community weighted mean trait (total effect)")))
+        }
+        pl = plotGradient(m, Gradient2, pred=predY2, measure="T",index=l, showData = TRUE, yshow = 0,
+                          main = paste0("Normal Model",": community weighted mean trait (marginal effect)"))
+        if(inherits(pl, "ggplot")){
+          print(pl + labs(title=paste0("Normal Model",": community weighted mean trait (marginal effect)")))
+        }
+      }
+    }
+  }
+
+dev.off()
+```
+
+
+```{r}
+# 
+nChains = 2
+samples = 100
+thin = 100
+filename=file.path(ModeDir, paste0("model_chains_",as.character(nChains),"_samples_",as.character(samples),"_thin_",as.character(thin)))
+load(filename)
+m1 <- m
+m2 <- m
+models <- list(m1,m2)
+nm = length(models)
+modelnames <- c("ABU1","ABU2")
+# predictions =  paste("panels/predictions.pdf")
+# pdf(file = predictions)
+for(j in 1:nm){
+  m = models[[j]]
+  covariates = all.vars(m$XFormula)
+  ex.sp = which.max(colMeans(m$Y,na.rm = TRUE)) #most common species as example species
+  if(m$distr[1,1]==2){
+    ex.sp = which.min(abs(colMeans(m$Y,na.rm = TRUE)-0.5)) #for probit models the species with prevalence closest to 0.5
+  }
+  for(k in 1:(length(covariates))){
+    covariate = covariates[[k]]
+    Gradient = constructGradient(m,focalVariable = covariate)
+    Gradient2 = constructGradient(m,focalVariable = covariate,non.focalVariables = 1)
+    predY = predict(m, Gradient=Gradient, expected = TRUE)
+    predY2 = predict(m, Gradient=Gradient2, expected = TRUE)
+    par(mfrow=c(2,1))
+    pl = plotGradient(m, Gradient, pred=predY, yshow = 0, measure="S", showData = TRUE,
+                      main = paste0(modelnames[[j]],": summed response (total effect)"))
+    if(inherits(pl, "ggplot")){
+      print(pl + labs(title=paste0(modelnames[[j]],": summed response (total effect)")))
+    }
+    pl = plotGradient(m, Gradient2, pred=predY2, yshow = 0, measure="S", showData = TRUE,
+                      main = paste0(modelnames[[j]],": summed response (marginal effect)"))
+    if(inherits(pl, "ggplot")){
+      print(pl + labs(title=paste0(modelnames[[j]],": summed response (marginal effect)")))
+    }
+    par(mfrow=c(2,1))
+    pl = plotGradient(m, Gradient, pred=predY, yshow = if(m$distr[1,1]==2){c(-0.1,1.1)}else{0}, measure="Y",index=ex.sp, showData = TRUE,
+                      main = paste0(modelnames[[j]],": example species (total effect)"))
+    if(inherits(pl, "ggplot")){
+      print(pl + labs(title=paste0(modelnames[[j]],": example species (total effect)")))
+    }
+    pl = plotGradient(m, Gradient2, pred=predY2, yshow = if(m$distr[1,1]==2){c(-0.1,1.1)}else{0}, measure="Y",index=ex.sp, showData = TRUE,
+                      main = paste0(modelnames[[j]],": example species (marginal effect)"))
+    if(inherits(pl, "ggplot")){
+      print(pl + labs(title=paste0(modelnames[[j]],": example species (marginal effect)")))
+    }
+    if(m$nt>1){
+      for(l in 2:m$nt){
+        par(mfrow=c(2,1))
+        pl = plotGradient(m, Gradient, pred=predY, measure="T",index=l, showData = TRUE,yshow = 0,
+                          main = paste0(modelnames[[j]],": community weighted mean trait (total effect)"))
+        if(inherits(pl, "ggplot")){
+          print(pl + labs(title=paste0(modelnames[[j]],": community weighted mean trait (total effect)")))
+        }
+        pl = plotGradient(m, Gradient2, pred=predY2, measure="T",index=l, showData = TRUE, yshow = 0,
+                          main = paste0(modelnames[[j]],": community weighted mean trait (marginal effect)"))
+        if(inherits(pl, "ggplot")){
+          print(pl + labs(title=paste0(modelnames[[j]],": community weighted mean trait (marginal effect)")))
+        }
+      }
+    }
+  }
+}
+# dev.off()
+```
+
+
+Spatial predictions
+
+```{r}
+# grid <- read.csv(file.path(DataDir, "grid.600.csv"), stringsAsFactors = TRUE)
+# View(grid)
+# grid$Unit_Class <- grid$Name # recreate a column for the Landscape to be uniform with that of the main data
+# grid$DIST_RIO <- grid$DIST_urbano # recreate a column for the Landscape to be uniform with that of the main data
+# 
+# grid <- grid[, c(12,7:10,13, 5,6)]
+# View(grid)
+# xy.grid = as.matrix(cbind(grid$X,grid$Y))
+# 
+# # colnames(xy.grid) <- c("x","y")
+# # colnames(xy.grid)
+# XData.grid = data.frame(Unit_Class=grid$Unit_Class, HIDRO_MEAN_500=grid$HIDRO_MEAN_500, NDVI_2000 = grid$NDVI_2000, DIST_RIO= grid$DIST_RIO, DIST_ARROZ= grid$DIST_ARROZ, DIST_urbano=grid$DIST_urbano,  stringsAsFactors = TRUE)
+# 
+# colnames(XData.grid)
+# colnames(X)
+# 
+# #
+# 
+# # We next use the prepareGradient function to convert the environmental and spatial
+# # predictors into a format that can be used as input for the predict function
+# 
+# Gradient = prepareGradient(m, XDataNew = XData.grid, sDataNew = list(trap=xy.grid))
+# 
+# # We are now ready to compute the posterior predictive distribution (takes a minute to compute it)
+# nParallel=2
+# predY = predict(m, Gradient=Gradient, expected = TRUE, nParallel=nParallel)
+# 
+# class(predY)
+# 
+# dim(predY[[1]])
+```
+
