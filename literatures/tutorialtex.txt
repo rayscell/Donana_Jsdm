@@ -1,0 +1,1 @@
+https://www.r-bloggers.com/2020/06/guide-to-using-the-hmsc-package-for-the-production-of-joint-species-distribtuion-models/
