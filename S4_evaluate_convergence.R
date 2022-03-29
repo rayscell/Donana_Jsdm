@@ -4,10 +4,11 @@ library(colorspace)
 library(vioplot)
 
 #include in samples_list and thin_list only those models that you have actually fitted!
-# samples_list = c(5,50, 250, 250 )
-# thin_list = c(1,10, 100, 1000)
-samples_list = c(5,50, 250 )
-thin_list = c(1,10, 100)
+# samples_list = c(5,50, 250 )
+# thin_list = c(1,10, 100)
+
+samples_list = c(5,50, 250, 250 )
+thin_list = c(1,10, 100, 1000)
 nst = length(thin_list)
 nChains = 4
 
