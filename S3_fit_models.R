@@ -7,8 +7,8 @@ load(file = "models/unfitted_models") #models, modelnames
 # samples_list = c(5,250,250,250,250)
 # thin_list = c(1,1,10,100,1000)
 
-samples_list = c(5,50, 250, 250)
-thin_list = c(1,10, 100, 1000)
+samples_list = c(5,50, 250, 250, 250)
+thin_list = c(1,10, 100, 1000, 10000)
 nChains = 4
 for(Lst in 1:length(samples_list)){
   thin = thin_list[Lst]

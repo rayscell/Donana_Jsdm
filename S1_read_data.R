@@ -1,23 +1,23 @@
 # This model is linear model for HMSC ROIZ DATA without the culex theilerri data that affect model fittings.
 
-
-# You need to provide an SXY file.
-# The files TP and P are optional, so indicate with TRUE/FALSE if they are included or not
-is.TP = FALSE
-is.P = FALSE
-
-
 getwd()
 # READING IN SXY: study design (S) and/or covariates (X) and species data (Y) 
 SXY = read.csv("Msq_donana_data.csv", stringsAsFactors=TRUE, header = TRUE) # or use read.csv2 when values are semicolon-separated
-# Modify the next three lines to split your SXY file to components that relate to
 # S: study design, including units of study and their possible coordinates (named as Route_x and Route_y to indicate that they relate to the units of Route)
 # X: covariates to be used as predictors
 # Y: species data
 # If you don't have variables that define the study design, indicate this by S=NULL
 # If you don't have covariate data, indicate this by X=NULL
 View(SXY)
+str(SXY)
 
+# colnames(SXY) <- c("fid", "field_1","trap", "trapnb", "Unit", "Unit_Class", "Unit_code",  "Oc.detritu", "Oc.caspius", 
+#                    "Cx.theiler", "Cx.pipiens", "Cx.modestu", "Cx.perexig", "An.atropar", "IShannon", "Total_mosq", "Riqueza_me", 
+#                    "HIDRO_MEAN_250", "HIDRO_MEAN_500", "HIDRO_MEAN_1000", "HIDRO_MEAN_2000", "LULC_100",   "LULC_250",   "LULC_500",
+#                    "LULC_1000",  "LULC_2000",  "NDVI_100",   "NDVI_250",   "NDVI_500",   "NDVI_1000",  "NDVI_2000",  "DIST_RIO",
+#                    "DIST_ARROZ", "DIST_urban", "Norte","Oeste", "LST_1")
+
+write.csv(SXY, "Msq_donana_data.csv", row.names = FALSE)
 #variable selection.
 #checking collinearity in the predictor
 
@@ -26,10 +26,8 @@ View(tPred)
 tPred <-tPred[, -c(5:9, 18,19)]
 View(tPred)
 
-library(car) # to use the variance inflation factors to check multicoliniarity
-
 # install.packages('usdm')
-library(usdm)
+library(usdm) # for performing variance inflation factor etc
 tPred_vif <- vif(tPred)
 tPred_vif
 
@@ -44,7 +42,7 @@ tPred_vifstep
 df_sp <- data.frame(tPred, SXY$Unit_code)
 View(df_sp)
 
-names(SXY)[18] <- paste0('HIDRO_MEAN_250')
+# rename column name from spanish to english
 names(SXY)[35] <- paste0("North")
 names(SXY)[36] <- paste0("East")
 
@@ -55,8 +53,8 @@ names(SXY)[36] <- paste0("East")
 
 
 S=SXY[, c(3, 35:36)]
-X=SXY[,c(6, 18, 31, 32, 33, 34, 37)] 
-Y=SXY[,c(8:14)]  
+X=SXY[,c(6, 18, 31, 32, 33, 34, 37)] # Predictors 
+Y=SXY[,c(8:14)] # response variable
 View(Y)
 
 Y2 <- Y
@@ -67,10 +65,6 @@ View(Y2)
 
 
 
-# What is not always easy is to decide what goes to S and what to X.
-# As a general rule, include in S those variables that you think should be modelled as random effect,
-# and in X those that you think should be modelled as fixed effects.
-# Don't worry if you are not sure which one is the "right choice", we will discuss this with you.
 
 # Check that the data looks as it should!
 View(S)

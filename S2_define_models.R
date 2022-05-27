@@ -17,7 +17,7 @@ head(Y)
 dim(Y)
 
 length(unique(S$trap))
-length(unique(S$Unit_Class))
+
 
 
 #for subsampling 
@@ -61,41 +61,26 @@ Yabu <- Y
 Yabu[Y==0] =NA
 Yabu = log(Yabu)
 
-## defining the model 
-
-# m1 = Hmsc(Y=Ypa, XData = X, XFormula = XFormula, distr = "probit",
-#           studyDesign = studyDesign,
-#           ranLevels = {list("trap"=rL.trap)})
-# 
-# #presence absence model with ennvironmental factors only
-# m2 = Hmsc(Y=Ypa, XData = X, XFormula = XFormula, distr = "probit")
-# 
-# #presence absence model with spatial random effect only
-# m3 = Hmsc(Y=Ypa, XData = X, XFormula = ~1, distr = "probit",
-#           studyDesign = studyDesign,
-#           ranLevels = {list("trap"=rL.trap)})
-
-
 #abundance model conditioned on presence
 # #abundance conditional on presence 
-m1 = Hmsc(Y=Yabu,YScale = TRUE, XData = X, XFormula = XFormula,
+m1 <- Hmsc(Y=Y, XData = X, XFormula = XFormula,
+           distr = "normal",
+           studyDesign = studyDesign,
+           ranLevels = {list("trap"=rL.trap)})
+m2 = Hmsc(Y=Yabu,YScale = TRUE, XData = X, XFormula = XFormula,
           distr = "normal",
           studyDesign = studyDesign,
           ranLevels = {list("trap"=rL.trap)})
 
-m2 = Hmsc(Y=Y2, XData = X, XFormula = XFormula,
+m3 = Hmsc(Y=Y2, XData = X, XFormula = XFormula,
           distr = "normal",
           studyDesign = studyDesign,
           ranLevels = {list("trap"=rL.trap)})
 
-# m3 = Hmsc(Y=Y2,YScale = TRUE, XData = X, XFormula = ~1,
-#           distr = "normal",
-#           studyDesign = studyDesign,
-#           ranLevels = {list("trap"=rL.trap)})
 
-
-models <- list(m1,m2)
-modelnames <- c("ACOP", "ABU")
+models <- list(m1, m2, m3)
+modelnames <- c("ABU","ACOP", "AABU")
 save(models, modelnames, file=file.path(ModeDir, "unfitted_models"))
 m1 #observe the model fitting
 m2
+m3
