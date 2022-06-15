@@ -17,7 +17,7 @@ str(SXY)
 #                    "LULC_1000",  "LULC_2000",  "NDVI_100",   "NDVI_250",   "NDVI_500",   "NDVI_1000",  "NDVI_2000",  "DIST_RIO",
 #                    "DIST_ARROZ", "DIST_urban", "Norte","Oeste", "LST_1")
 
-write.csv(SXY, "Msq_donana_data.csv", row.names = FALSE)
+#write.csv(SXY, "Msq_donana_data.csv", row.names = FALSE)
 #variable selection.
 #checking collinearity in the predictor
 
